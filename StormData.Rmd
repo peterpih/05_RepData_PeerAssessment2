@@ -1,0 +1,364 @@
+#Relationship Of Storm Severity On Fatality And Property Damage In The US
+Peter Pih  
+Reproducible Research, Coursera (repdata-015)
+June 18th, 2015
+
+The data set starts in 1950 and ends in November 2011, a period of roughly 61 years.
+  
+
+##Synopsis
+This study considers which types of severe weather conditions which have the greatest impact on fatality and property damage rates in the US between 1950-2011.
+
+##Overview
+
+This report is an evaluation of the Storm Data data set[1] which consists of 902,297 observations and 37 variables.
+
+We are asked to answer the following two questions:
+
+- Across the United States, which types of events (as indicated in the EVTYPE variable) are most harmful with respect to population health?
+
+- Across the United States, which types of events have the greatest economic consequences?
+
+For the purpose of this study, we define "harmful to population health" as death and injury.  These are direct effects of the storms on people, we do not include secondary environmental effects in this definition, ie contamination of water and food supplies, loss of medical coverage, etc.
+
+For the purposes of this study, we define "economic consequences" as direct damage to property. The two main categories in the data set are: property damage and crop damage.
+
+##Data Processing
+
+To process the data, we use several functions which allow consistent and uniform processing.
+
+```{R}
+setwd("C:/R/RepData_PeerAssessment2")
+```
+
+### **evtype_aggregate**
+
+Sums up the variable of interest (FATALITIES, INJURIES, PROPDMG, CROPDMG) and ranks EVTYPE by this sum.
+
+```{R}
+evtype_aggregate <- function(x, field="FATALITIES"){
+    result <- data.frame()
+    types_u <- unique(x$EVTYPE)
+    for (i in types_u){
+        type_subset <- subset(x, x$EVTYPE == i)
+        
+        if (field == "FATALITIES") t_sum <- sum(type_subset$FATALITIES)
+        else if (field == "INJURIES") t_sum <- sum(type_subset$INJURIES)
+        else if (field == "PROPERTY") t_sum <- sum(type_subset$PROPDMG)
+        else if (field == "CROPS") t_sum <- sum(type_subset$CROPDMG)
+        
+        result <- rbind(result, data.frame(EVTYPE=i, count=nrow(type_subset), sum=t_sum))
+    }
+    
+    result<-result[with(result, order(-result$sum)),]   # sort the totals descending, the worst on top
+    #
+    # Average per incident
+    #
+    result <- cbind(result, avg=as.integer(result$sum/result$count+0.5))
+    #
+    # Add the % of sum for each row
+    #
+    result <- cbind(result, pct=round(result$sum/sum(result$sum)*100, 2))
+    
+                          
+    result
+}
+```
+
+### evtype_reclassify()
+
+This function is used to tidy up and help group labels into categories. There are several dominant categories, ie TORNADO, which have not been aggregated, however other 
+
+The reclassification takes into account the suggested 48 NOAA catagories and further reduces them based on a loose, heuristic criteria of event duration and similarity.  For example, tempurature effects **HEAT** tend to last longer, on the order of days, as opposed to dynamic effects **TORNADO** which last on the order of hours. Another example of grouping criteria is time predictability. For example, ground movement **LANDSLIDES** are very difficult to predict, whereas coastal conditions **SURF** can be predicted or warned in advance (though the magnitude may not be reliably predicted). Another exmaple is precipitation, **PRECIP**, which is basically things falling from the sky.
+
+Admittedly, several of the categories will have high corrleation of incidence with each other ie **WIND** and **SURF**, or **ICE** and **COLD**.
+
+It is notable that on initial inspection of the EVTYPE categories without modification, several categories stood out as being associated with large amounts of damage or injury, ie **TORNADO**
+
+This reclassification table is not a comprehensive list covering all EVTYPEs of the entire Storm Data data set, it is derived from the subsets of interest, ie those that have damage values or fatalities reported.
+
+```{R}
+evtype_reclassify <- function(x) {
+    
+    x$EVTYPE <- as.character(x$EVTYPE)
+    
+    x$EVTYPE[grepl("TORNADO", x$EVTYPE, ignore.case=TRUE)] <-"TORNADO"
+    x$EVTYPE[grepl("FUNNEL CLOUD", x$EVTYPE, ignore.case=TRUE)] <-"TORNADO"
+    x$EVTYPE[grepl("TORNDAO", x$EVTYPE, ignore.case=TRUE)] <-"TORNADO"
+    x$EVTYPE[grepl("HEAT", x$EVTYPE, ignore.case=TRUE)] <-"HEAT"
+    x$EVTYPE[grepl("WARM", x$EVTYPE, ignore.case=TRUE)] <-"HEAT"
+    x$EVTYPE[grepl("HYPERTHERMIA", x$EVTYPE, ignore.case=TRUE)] <-"HEAT"
+    x$EVTYPE[grepl("COLD", x$EVTYPE, ignore.case=TRUE)] <-"COLD"
+    x$EVTYPE[grepl("LOW TEMPERATURE", x$EVTYPE, ignore.case=TRUE)] <-"COLD"
+    x$EVTYPE[grepl("HYPOTHERMIA", x$EVTYPE, ignore.case=TRUE)] <-"COLD"
+    x$EVTYPE[grepl("FREEZE", x$EVTYPE, ignore.case=TRUE)] <-"COLD"
+    x$EVTYPE[grepl("COOL AND WET", x$EVTYPE, ignore.case=TRUE)] <-"COLD"
+    x$EVTYPE[grepl("WIND", x$EVTYPE, ignore.case=TRUE)] <-"WIND"
+    x$EVTYPE[grepl("HIGH", x$EVTYPE, ignore.case=TRUE)] <-"WIND"
+    x$EVTYPE[grepl("DOWNBURST", x$EVTYPE, ignore.case=TRUE)] <-"WIND"
+    x$EVTYPE[grepl("SEVERE TURBULENCE", x$EVTYPE, ignore.case=TRUE)] <-"WIND"
+    x$EVTYPE[grepl("GUSTNADO", x$EVTYPE, ignore.case=TRUE)] <-"WIND"
+    x$EVTYPE[grepl("FLOOD", x$EVTYPE, ignore.case=TRUE)] <-"FLOOD"
+    x$EVTYPE[grepl("FLD", x$EVTYPE, ignore.case=TRUE)] <-"FLOOD"
+    x$EVTYPE[grepl("HIGH WATER", x$EVTYPE, ignore.case=TRUE)] <-"FLOOD"
+    x$EVTYPE[grepl("RAPIDLY RISING WATER", x$EVTYPE, ignore.case=TRUE)] <-"FLOOD"
+    x$EVTYPE[grepl("DAM BREAK", x$EVTYPE, ignore.case=TRUE)] <-"FLOOD"
+    x$EVTYPE[grepl("SNOW", x$EVTYPE, ignore.case=TRUE)] <- "PRECIP"
+    x$EVTYPE[grepl("RAIN", x$EVTYPE, ignore.case=TRUE)] <-"PRECIP"
+    x$EVTYPE[grepl("STORM", x$EVTYPE, ignore.case=TRUE)] <-"PRECIP"
+    x$EVTYPE[grepl("HAIL", x$EVTYPE, ignore.case=TRUE)] <-"PRECIP"
+    x$EVTYPE[grepl("BLIZZARD", x$EVTYPE, ignore.case=TRUE)] <-"PRECIP"
+    x$EVTYPE[grepl("WINTER", x$EVTYPE, ignore.case=TRUE)] <-"PRECIP"
+    x$EVTYPE[grepl("SLEET", x$EVTYPE, ignore.case=TRUE)] <-"PRECIP"
+    x$EVTYPE[grepl("HEAVY SHOWER", x$EVTYPE, ignore.case=TRUE)] <-"PRECIP"
+    x$EVTYPE[grepl("MIXED PRECIP", x$EVTYPE, ignore.case=TRUE)] <-"PRECIP"
+    x$EVTYPE[grepl("WINTRY MIX", x$EVTYPE, ignore.case=TRUE)] <-"PRECIP"
+    x$EVTYPE[grepl("DRIZZLE", x$EVTYPE, ignore.case=TRUE)] <-"PRECIP"
+    x$EVTYPE[grepl("TSTWM", x$EVTYPE, ignore.case=TRUE)] <-"PRECIP"
+    x$EVTYPE[grepl("HEAVY PRECIPITATION", x$EVTYPE, ignore.case=TRUE)] <-"PRECIP"
+    x$EVTYPE[grepl("MICROBURST", x$EVTYPE, ignore.case=TRUE)] <-"PRECIP"
+    x$EVTYPE[grepl("HEAVY MIX", x$EVTYPE, ignore.case=TRUE)] <-"PRECIP"
+    x$EVTYPE[grepl("EXCESSIVE WETNESS", x$EVTYPE, ignore.case=TRUE)] <-"PRECIP"
+    x$EVTYPE[grepl("AVALANCE", x$EVTYPE, ignore.case=TRUE)] <-"LANDSLIDE"
+    x$EVTYPE[grepl("AVALANCHE", x$EVTYPE, ignore.case=TRUE)] <-"LANDSLIDE"
+    x$EVTYPE[grepl("LANDSLIDES", x$EVTYPE, ignore.case=TRUE)] <-"LANDSLIDE"
+    x$EVTYPE[grepl("MUDSLIDE", x$EVTYPE, ignore.case=TRUE)] <-"LANDSLIDE"
+    x$EVTYPE[grepl("MUD SLIDE", x$EVTYPE, ignore.case=TRUE)] <-"LANDSLIDE"
+    x$EVTYPE[grepl("ROCK SLIDE", x$EVTYPE, ignore.case=TRUE)] <-"LANDSLIDE"
+    x$EVTYPE[grepl("LANDSLUMP", x$EVTYPE, ignore.case=TRUE)] <-"LANDSLIDE"
+    x$EVTYPE[grepl("HEAVY SEAS", x$EVTYPE, ignore.case=TRUE)] <-"SURF"
+    x$EVTYPE[grepl("HIGH SEAS", x$EVTYPE, ignore.case=TRUE)] <-"SURF"
+    x$EVTYPE[grepl("HIGH SURF", x$EVTYPE, ignore.case=TRUE)] <-"SURF"
+    x$EVTYPE[grepl("HIGH WAVES", x$EVTYPE, ignore.case=TRUE)] <-"SURF"
+    x$EVTYPE[grepl("HIGH SWELL", x$EVTYPE, ignore.case=TRUE)] <-"SURF"
+    x$EVTYPE[grepl("HEAVY SURF", x$EVTYPE, ignore.case=TRUE)] <-"SURF"
+    x$EVTYPE[grepl("WATERSPOUT", x$EVTYPE, ignore.case=TRUE)] <-"SURF"
+    x$EVTYPE[grepl("ROUGH SURF", x$EVTYPE, ignore.case=TRUE)] <-"SURF"
+    x$EVTYPE[grepl("ROUGH SEAS", x$EVTYPE, ignore.case=TRUE)] <-"SURF"
+    x$EVTYPE[grepl("RIP CURRENT", x$EVTYPE, ignore.case=TRUE)] <-"SURF"
+    x$EVTYPE[grepl("MARINE MISHAP", x$EVTYPE, ignore.case=TRUE)] <-"SURF"
+    x$EVTYPE[grepl("MARINE ACCIDENT", x$EVTYPE, ignore.case=TRUE)] <-"SURF"
+    x$EVTYPE[grepl("HAZARDOUS SURF", x$EVTYPE, ignore.case=TRUE)] <-"SURF"
+    x$EVTYPE[grepl("ROGUE WAVE", x$EVTYPE, ignore.case=TRUE)] <-"SURF"
+    x$EVTYPE[grepl("TSUNAMI", x$EVTYPE, ignore.case=TRUE)] <-"SURF"
+    x$EVTYPE[grepl("DROWNING", x$EVTYPE, ignore.case=TRUE)] <-"SURF"
+    x$EVTYPE[grepl("COASTAL", x$EVTYPE, ignore.case=TRUE)] <-"SURF"
+    x$EVTYPE[grepl("LOW TIDE", x$EVTYPE, ignore.case=TRUE)] <-"SURF"
+    x$EVTYPE[grepl("HEAVY SWELLS", x$EVTYPE, ignore.case=TRUE)] <-"SURF"
+    x$EVTYPE[grepl("ICE FLOES", x$EVTYPE, ignore.case=TRUE)] <-"SURF"
+    x$EVTYPE[grepl("SEICHE", x$EVTYPE, ignore.case=TRUE)] <-"SURF"
+    x$EVTYPE[grepl("BEACH EROSION", x$EVTYPE, ignore.case=TRUE)] <-"SURF"
+    x$EVTYPE[grepl("GLAZE", x$EVTYPE, ignore.case=TRUE)] <-"ICE"
+    x$EVTYPE[grepl("ICY ROADS", x$EVTYPE, ignore.case=TRUE)] <-"ICE"
+    x$EVTYPE[grepl("BLACK ICE", x$EVTYPE, ignore.case=TRUE)] <-"ICE"
+    x$EVTYPE[grepl("ICE ROAD", x$EVTYPE, ignore.case=TRUE)] <-"ICE"
+    x$EVTYPE[grepl("ICE ON ROAD", x$EVTYPE, ignore.case=TRUE)] <-"ICE"
+    x$EVTYPE[grepl("FREEZING SPRAY", x$EVTYPE, ignore.case=TRUE)] <-"ICE"
+    x$EVTYPE[grepl("FROST", x$EVTYPE, ignore.case=TRUE)] <-"ICE"
+    x$EVTYPE[grepl("ICE JAM", x$EVTYPE, ignore.case=TRUE)] <-"ICE"
+    x$EVTYPE[grepl("FIRE", x$EVTYPE, ignore.case=TRUE)] <-"FIRE"
+    x$EVTYPE[grepl("DROUGHT", x$EVTYPE, ignore.case=TRUE)] <-"FIRE"
+    x$EVTYPE[grepl("FOG", x$EVTYPE, ignore.case=TRUE)] <-"VISIBILITY"
+    x$EVTYPE[grepl("DRY MICROBURST", x$EVTYPE, ignore.case=TRUE)] <-"VISIBILITY"
+    x$EVTYPE[grepl("DUST DEVIL", x$EVTYPE, ignore.case=TRUE)] <-"VISIBILITY"
+    x$EVTYPE[grepl("BLOWING DUST", x$EVTYPE, ignore.case=TRUE)] <-"VISIBILITY"
+    x$EVTYPE[grepl("DENSE SMOKE", x$EVTYPE, ignore.case=TRUE)] <-"VISIBILITY"
+    x$EVTYPE[grepl("VOLCANIC", x$EVTYPE, ignore.case=TRUE)] <-"VISIBILITY"
+    x$EVTYPE[grepl("HURRICANE", x$EVTYPE, ignore.case=TRUE)] <-"HURRICANE"
+    x$EVTYPE[grepl("TYPHOON", x$EVTYPE, ignore.case=TRUE)] <-"HURRICANE"
+    x$EVTYPE[grepl("TROPICAL", x$EVTYPE, ignore.case=TRUE)] <-"HURRICANE"
+    x$EVTYPE[grepl("LIGHTNING", x$EVTYPE, ignore.case=TRUE)] <-"LIGHTNING"
+    x$EVTYPE[grepl("LIGHTING", x$EVTYPE, ignore.case=TRUE)] <-"LIGHTNING"
+    x$EVTYPE[grepl("LIGNTNING", x$EVTYPE, ignore.case=TRUE)] <-"LIGHTNING"
+    x$EVTYPE[grepl("OTHER", x$EVTYPE, ignore.case=TRUE)] <-"OTHER"
+    x$EVTYPE[grepl("URBAN", x$EVTYPE, ignore.case=TRUE)] <-"OTHER"
+    return(x)
+}
+```
+
+The main steps in processing and modifying the data set are:
+
+- Read in the original data set
+- Extract the portion of interest
+- Modify category groupings of events
+- Identify the top 20 impacts by event type
+
+
+Read in the original data set whic is a .csv file of 902,297 observations(rows) by 37 varables.
+
+```{R, readdata, cache=TRUE}
+storm_data <- read.csv("data/repdata-data-StormData.csv.bz2")
+```
+Due to the size of the original data set, we extract the two portions of interest for this study:
+
+- **fatal_injury** for fatalities and injury
+- **property_crop** for property and crop damages.
+
+```{R}
+fatal_injury <- subset(storm_data, storm_data$FATALITIES > 0 | storm_data$INJURIES > 0)
+property_crop <- subset(storm_data, storm_data$PROPDMG > 0 | storm_data$CROPDMG > 0)
+rm(storm_data)
+```
+
+### Impact On Population
+
+For impact on population, we further subdivide the **fatal_injury** data set into **fatal*** and **injury** subsets to specifically look at injury and fatality rates during severe weather. These have an **_o** suffix, denoting they are the original classifications for EVTYPE.
+
+```{R}
+fatal_subset <- subset(fatal_injury, fatal_injury$FATALITIES > 0)
+injury_subset <- subset(fatal_injury, fatal_injury$INJURIES > 0)
+```
+
+Of the total reported cases of fatalities and injuries, `r round(nrow(fatal_subset),0)` had fatalities, `r nrow(injury_subset)` had injuries, with `r nrow(fatal_injury)` total cases.
+
+###Severe Weather Impacts on Fatality and Injury
+
+Reclassify some of the EVTYPEs and aggregate together, add an additional column which is the average per event.
+
+```{R}
+fatal_reclassify <- evtype_reclassify(fatal_subset)
+fatal_summary <- evtype_aggregate(fatal_reclassify, "FATALITIES")
+
+injury_reclassify <- evtype_reclassify(injury_subset)
+injury_summary <- evtype_aggregate(injury_reclassify, "INJURIES")
+```
+Here we have the resulting tables:
+```{R}
+head(fatal_summary, 5)
+head(injury_summary, 5)
+```
+Clearly the major contributors are **TORNADO**, **HEAT**, **FLOOD**, **WIND**, and **PRECIP**
+```{R}
+# Clean up some memory
+rm(fatal_reclassify, fatal_subset, injury_reclassify, injury_subset)
+```
+###Sever Weather Impacts On Property and Crop Damage
+
+We do a similar analysis for property damage.
+
+First we need to scale the reported amounts
+
+We need to modify the values 
+
+We give the proper scaling for amounts of damage.
+
+- H - hundreds
+- K - thousands
+- M - millions
+- B - billions
+
+```{R}
+# Convert any lower case scaling to upper case
+property_crop$PROPDMGEXP <- toupper(property_crop$PROPDMGEXP)
+#
+# Values are based in x1000 (thousands)
+#
+# Any observations without a correct scale designator will not be altered
+#
+property_crop$PROPDMG <- ifelse(property_crop$PROPDMGEXP=="H", property_crop$PROPDMG/10, property_crop$PROPDMG)
+property_crop$PROPDMG <- ifelse(property_crop$PROPDMGEXP=="K", property_crop$PROPDMG*1, property_crop$PROPDMG)
+property_crop$PROPDMG <- ifelse(property_crop$PROPDMGEXP=="M", property_crop$PROPDMG*1000, property_crop$PROPDMG)
+property_crop$PROPDMG <- ifelse(property_crop$PROPDMGEXP=="B", property_crop$PROPDMG*1000000, property_crop$PROPDMG)
+```
+
+Subdivide for property and crop
+
+```{R}
+property_subset <- subset(property_crop, property_crop$PROPDMG > 0)
+crop_subset <- subset(property_crop, property_crop$CROPDMG > 0)
+```
+
+```{R}
+property_reclassify <- evtype_reclassify(property_subset)
+property_summary <- evtype_aggregate(property_reclassify, "PROPERTY")
+
+crop_reclassify <- evtype_reclassify(crop_subset)
+crop_summary <- evtype_aggregate(crop_reclassify, "CROPS")
+```
+
+```{R}
+# Clean up some memory
+rm(property_subset, property_reclassify, crop_subset, crop_reclassify)
+```
+
+```{R}
+head(property_summary, 5)
+head(crop_summary, 5)
+```
+
+##Results
+Clearly the biggest event 
+An interesting observation is that heat dominates such much more than cold
+
+Damage to crops were mainly due to "blanketing" effects of precipitation and flooding. Tornado's effects on crops was limited to less than 8% of the totl
+
+Some assumptions in the data:
+
+- Not for property and crop damage data, if the scale is off 
+
+[1] https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf
+
+###Appendix
+##How has the data changed over time
+
+
+
+We break the observations into two time periods by splitting down the middle to see if there has been an effect in the two time periods.
+
+z<- as.Date("2/20/1951 0:00:00", format="%m/%d/%Y %H:%M:%S")
+
+property_subset$BGN_DATE <- as.Date(property_subset$BGN_DATE, format="%m/%d/%Y %H:%M:%S")
+property_subset$BGN_DATE <- as.numeric(format(property_subset$BGN_DATE,"%Y"))
+
+crop_subset$BGN_DATE <- as.Date(crop_subset$BGN_DATE, format="%m/%d/%Y %H:%M:%S")
+crop_subset$BGN_DATE <- as.numeric(format(crop_subset$BGN_DATE,"%Y"))
+
+fatal_subset$BGN_DATE <- as.Date(fatal_subset$BGN_DATE, format="%m/%d/%Y %H:%M:%S")
+fatal_subset$BGN_DATE <- as.numeric(format(fatal_subset$BGN_DATE,"%Y"))
+
+injury_subset$BGN_DATE <- as.Date(injury_subset$BGN_DATE, format="%m/%d/%Y %H:%M:%S")
+injury_subset$BGN_DATE <- as.numeric(format(injury_subset$BGN_DATE,"%Y"))
+
+by_year <- function(x){
+    result <- data.frame()
+    y <- unique(x$BGN_DATE)
+    for (i in y){
+        y_subset <- subset(x, x$BGN_DATE == i)
+        result <- rbind(result, data.frame(year=i, count=nrow(y_subset)))
+    }
+    result
+}
+
+
+#
+# GRAPHS
+#
+barplot(property_summary$count, names.arg=property_summary$EVTYPE, cex.names =.5)
+
+plot(property_result$year, property_result$count, xlab="Year", ylab="Incident Count", main="Property Damage")
+plot(crop_result$year, crop_result$count, xlab="Year", ylab="Incident Count", main="Crop Damage")
+
+plot(fatal_result$year, fatal_result$count, xlab="Year", ylab="Incident Count", main="Fatalities")
+plot(injury_result$year, injury_result$count, xlab="Year", ylab="Incident Count", main="Injuries")
+legend(injury_result$year, injury_result$count, xlab="Year", ylab="Incident Count", main="Injuries")
+
+#
+# Yearly Graph
+#
+injury_result <- cbind(injury_result, type="Injuries")
+fatal_result <- cbind(fatal_result, type="Fatalities")
+a_result <- fatal_result
+a_result<-rbind(a_result, injury_result)
+
+plot(a_result$year, a_result$count, col=a_result$type, xlab="Year",ylab="Count",main="Incidents Per Year")
+legend("topleft", legend=c("fatal","injury"), col=c(1,2), pch=1)
+
+property_result <- cbind(property_result, type="Property")
+crop_result <- cbind(crop_result, type="Crops")
+a_result <- property_result
+a_result<-rbind(a_result, crop_result)
+
+plot(a_result$year, a_result$count, col=a_result$type, xlab="Year",ylab="Count",main="Incidents Per Year")
+legend("topleft", legend=c("property","crops"), col=c(1,2), pch=1)
+
+plot(crop_result$year, crop_result$count)
