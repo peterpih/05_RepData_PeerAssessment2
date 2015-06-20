@@ -230,7 +230,7 @@ head(injury_summary, 5)
 Clearly the major contributors are **TORNADO**, **HEAT**, **FLOOD**, **WIND**, and **PRECIP**
 ```{R}
 # Clean up some memory
-rm(fatal_reclassify, fatal_subset, injury_reclassify, injury_subset)
+# rm(fatal_reclassify, fatal_subset, injury_reclassify, injury_subset)
 ```
 ###Sever Weather Impacts On Property and Crop Damage
 
@@ -278,7 +278,7 @@ crop_summary <- evtype_aggregate(crop_reclassify, "CROPS")
 
 ```{R}
 # Clean up some memory
-rm(property_subset, property_reclassify, crop_subset, crop_reclassify)
+# rm(property_subset, property_reclassify, crop_subset, crop_reclassify)
 ```
 
 ```{R}
@@ -298,15 +298,14 @@ Some assumptions in the data:
 
 [1] https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf
 
-###Appendix
+\newpage
+#Appendix
 ##How has the data changed over time
-
-
 
 We break the observations into two time periods by splitting down the middle to see if there has been an effect in the two time periods.
 
 z<- as.Date("2/20/1951 0:00:00", format="%m/%d/%Y %H:%M:%S")
-
+```{R}
 property_subset$BGN_DATE <- as.Date(property_subset$BGN_DATE, format="%m/%d/%Y %H:%M:%S")
 property_subset$BGN_DATE <- as.numeric(format(property_subset$BGN_DATE,"%Y"))
 
@@ -328,37 +327,28 @@ by_year <- function(x){
     }
     result
 }
+```
 
 
-#
-# GRAPHS
-#
-barplot(property_summary$count, names.arg=property_summary$EVTYPE, cex.names =.5)
+```{R}
+fatal_year <- by_year(fatal_subset)
+injury_year <- by_year(injury_subset)
 
-plot(property_result$year, property_result$count, xlab="Year", ylab="Incident Count", main="Property Damage")
-plot(crop_result$year, crop_result$count, xlab="Year", ylab="Incident Count", main="Crop Damage")
-
-plot(fatal_result$year, fatal_result$count, xlab="Year", ylab="Incident Count", main="Fatalities")
-plot(injury_result$year, injury_result$count, xlab="Year", ylab="Incident Count", main="Injuries")
-legend(injury_result$year, injury_result$count, xlab="Year", ylab="Incident Count", main="Injuries")
-
-#
-# Yearly Graph
-#
-injury_result <- cbind(injury_result, type="Injuries")
-fatal_result <- cbind(fatal_result, type="Fatalities")
-a_result <- fatal_result
-a_result<-rbind(a_result, injury_result)
+injury_year <- cbind(injury_year, type="Injuries")
+fatal_year <- cbind(fatal_year, type="Fatalities")
+a_result<-rbind(fatal_year, injury_year)
 
 plot(a_result$year, a_result$count, col=a_result$type, xlab="Year",ylab="Count",main="Incidents Per Year")
 legend("topleft", legend=c("fatal","injury"), col=c(1,2), pch=1)
+```
+```{R}
+property_year <- by_year(property_subset)
+crop_year <- by_year(crop_subset)
 
-property_result <- cbind(property_result, type="Property")
-crop_result <- cbind(crop_result, type="Crops")
-a_result <- property_result
-a_result<-rbind(a_result, crop_result)
+property_year <- cbind(property_year, type="Property")
+crop_year <- cbind(crop_year, type="Crops")
+a_result<-rbind(property_year, crop_year)
 
 plot(a_result$year, a_result$count, col=a_result$type, xlab="Year",ylab="Count",main="Incidents Per Year")
 legend("topleft", legend=c("property","crops"), col=c(1,2), pch=1)
-
-plot(crop_result$year, crop_result$count)
+```
