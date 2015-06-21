@@ -1,17 +1,17 @@
-#Relationship Of Storm Severity On Fatality And Property Damage In The US
+#Relationship Of Storm Severity On  
+#Fatality And Property Damage In The US
 Peter Pih  
-Reproducible Research, Coursera (repdata-015)
-June 18th, 2015
+Reproducible Research, Coursera (repdata-015)  
+June 18th, 2015  
 
-The data set starts in 1950 and ends in November 2011, a period of roughly 61 years.
-  
 
-##Synopsis
-This study considers which types of severe weather conditions which have the greatest impact on fatality and property damage rates in the US between 1950-2011.
+##**Synopsis**
 
-##Overview
+This study considers which types of severe weather conditions have the greatest impact on fatality and property damage rates in the US between 1950-2011.  Of the 48 NOAA categories for severe weather incidents, the five causing the most severe fatalities, injuries, property damage, and crop damage are identified. We find that Fatalities and Injuries are dominated by tornadoes and heat; Property and Crops by flooding and precipitation, though tornadoes are in the top 5 contributors to damage for these latter two. This would indicate that differing methods may be necessary to mitigate future damage costs. We also show a potentially alarming trend in property damage which has been trend increasing since the 1990's.
 
-This report is an evaluation of the Storm Data data set[1] which consists of 902,297 observations and 37 variables.
+##**Overview**
+
+This report is an evaluation of the Storm Data data set[1], for which we consider damage rates for fatalities, injuries, property, and crops during severe weather events.
 
 We are asked to answer the following two questions:
 
@@ -19,19 +19,27 @@ We are asked to answer the following two questions:
 
 - Across the United States, which types of events have the greatest economic consequences?
 
-For the purpose of this study, we define "harmful to population health" as death and injury.  These are direct effects of the storms on people, we do not include secondary environmental effects in this definition, ie contamination of water and food supplies, loss of medical coverage, etc.
+For the purpose of this study, we define **harmful to population health** as death and injury.  These are direct effects of the storms on people, we do not include secondary environmental effects in this definition, ie contamination of water and food supplies, loss of medical coverage, etc.
 
-For the purposes of this study, we define "economic consequences" as direct damage to property. The two main categories in the data set are: property damage and crop damage.
+For the purposes of this study, we define **economic consequences** as direct damage to property. The two main categories in the data set are: property damage and crop damage.
 
-##Data Processing
+Sections in thie report:
 
-To process the data, we use several functions which allow consistent and uniform processing.
+1. Function Declarations - internal functions used for data processing for this report
+2. Data Processing and Modifications
+3. Severe Weather Impact On Fatalities And Injuries
+4. Severe Weather Impact On Property And Crop Damage
+5. Results
 
-```{R}
-setwd("C:/R/RepData_PeerAssessment2")
-```
+##**Function Declarations**
 
-### **evtype_aggregate**
+These are descriptions of functions used in this study. We use several functions to process the data which allows for consistent, uniform, and repeatable processing.
+
+- evtype_aggregate()
+- evtype_reclassify()
+- by_year()
+
+**evtype_aggregate function**
 
 Sums up the variable of interest (FATALITIES, INJURIES, PROPDMG, CROPDMG) and ranks EVTYPE by this sum.
 
@@ -52,30 +60,44 @@ evtype_aggregate <- function(x, field="FATALITIES"){
     
     result<-result[with(result, order(-result$sum)),]   # sort the totals descending, the worst on top
     #
-    # Average per incident
+    # Add a column for average cost per incident
     #
     result <- cbind(result, avg=as.integer(result$sum/result$count+0.5))
     #
-    # Add the % of sum for each row
+    # Add a column for the % of sum for each row
     #
     result <- cbind(result, pct=round(result$sum/sum(result$sum)*100, 2))
-    
-                          
+
     result
 }
 ```
 
-### evtype_reclassify()
+**by_year() function**
 
-This function is used to tidy up and help group labels into categories. There are several dominant categories, ie TORNADO, which have not been aggregated, however other 
+Creates a data.frame of the number of incidents in a given year denoted in **BGN_DATE** which should contain the year an incident occurred.
+```{R}
+by_year <- function(x){
+    result <- data.frame()                # initialize output data.frame
+    y <- unique(x$BGN_DATE)               # get unique years
+    for (i in y){                                  
+        y_subset <- subset(x, x$BGN_DATE == i)
+        result <- rbind(result, data.frame(year=i, count=nrow(y_subset)))
+    }
+    result
+}
+```
 
-The reclassification takes into account the suggested 48 NOAA catagories and further reduces them based on a loose, heuristic criteria of event duration and similarity.  For example, tempurature effects **HEAT** tend to last longer, on the order of days, as opposed to dynamic effects **TORNADO** which last on the order of hours. Another example of grouping criteria is time predictability. For example, ground movement **LANDSLIDES** are very difficult to predict, whereas coastal conditions **SURF** can be predicted or warned in advance (though the magnitude may not be reliably predicted). Another exmaple is precipitation, **PRECIP**, which is basically things falling from the sky.
+**evtype_reclassify() function**
 
-Admittedly, several of the categories will have high corrleation of incidence with each other ie **WIND** and **SURF**, or **ICE** and **COLD**.
+This function is used to tidy up and help group labels into a parsimonious number of categories. There are several dominant categories, ie TORNADO, which have not been modified from the original.
 
-It is notable that on initial inspection of the EVTYPE categories without modification, several categories stood out as being associated with large amounts of damage or injury, ie **TORNADO**
+The reclassification takes into account the suggested 48 NOAA catagories and further reduces them based on a heuristic criterias: duration, similarity, predictability, preventability, amoung oter criteria.  For example, tempurature effects like **HEAT** tend to last on the order of days, as opposed to dynamic effects like **TORNADO** which last on the order of hours. Another example of grouping criteria is time predictability.  Ground movement **LANDSLIDES** are very difficult to predict, whereas coastal conditions **SURF** can be predicted or warned in advance (though the magnitude may not be reliably predicted). Another example is precipitation **PRECIP** which is basically things falling from the sky like rain, snow, and hail.
 
-This reclassification table is not a comprehensive list covering all EVTYPEs of the entire Storm Data data set, it is derived from the subsets of interest, ie those that have damage values or fatalities reported.
+Admittedly, several of the categories will have high corrleations of incidence with each other ie **WIND** and **SURF**, or **ICE** and **COLD**.
+
+It is notable that on initial inspection of the EVTYPE categories without modification, several of the original categories stood out as being associated with large amounts of damage or injury, ie **TORNADO**
+
+This reclassification table is not a comprehensive list covering all the EVTYPEs of the entire Storm Data set. It is derived from the subsets of interest (**fatal_injury**, **property_crop**), and is formed by those observations that have damage values or fatalities reported as greater than 0.  **This table may need to be updated as new data is added to the Storm Data set**.
 
 ```{R}
 evtype_reclassify <- function(x) {
@@ -176,179 +198,213 @@ evtype_reclassify <- function(x) {
 }
 ```
 
+##**Data Processing and Modifications**
+
 The main steps in processing and modifying the data set are:
 
-- Read in the original data set
-- Extract the portion of interest
-- Modify category groupings of events
-- Identify the top 20 impacts by event type
+1. Copy the original data set to a local directory
+2. Read in the original data set
+3. Extract the two broad portions of interest: **fatalities/injuries** and **property/crops**
+4. Modify category groupings of events using **evtype_reclassify()**
+5. Convert event date(s)
+6. Further separate into **fatal_** or **injury_** and **property_** or **crop_**
+7. Identify the top 10 or so impacts by event type and graph the top 5
 
 
-Read in the original data set whic is a .csv file of 902,297 observations(rows) by 37 varables.
+Read in the original data set which is a compressed .csv file that has been copied to a subdirectory data/
 
-```{R, readdata, cache=TRUE}
+```{R, readdata}
 storm_data <- read.csv("data/repdata-data-StormData.csv.bz2")
+dim(storm_data)
+str(storm_data)
 ```
+
 Due to the size of the original data set, we extract the two portions of interest for this study:
 
 - **fatal_injury** for fatalities and injury
 - **property_crop** for property and crop damages.
 
+and then free up memory.  The two partitions are done this way since the scale of measurements are different one in dollars and the other in counts.
+
 ```{R}
 fatal_injury <- subset(storm_data, storm_data$FATALITIES > 0 | storm_data$INJURIES > 0)
+dim(fatal_injury)
 property_crop <- subset(storm_data, storm_data$PROPDMG > 0 | storm_data$CROPDMG > 0)
-rm(storm_data)
+dim(property_crop)
+rm(storm_data)  # clear some memory
 ```
 
-### Impact On Population
-
-For impact on population, we further subdivide the **fatal_injury** data set into **fatal*** and **injury** subsets to specifically look at injury and fatality rates during severe weather. These have an **_o** suffix, denoting they are the original classifications for EVTYPE.
+Reclassify the categories
 
 ```{R}
-fatal_subset <- subset(fatal_injury, fatal_injury$FATALITIES > 0)
-injury_subset <- subset(fatal_injury, fatal_injury$INJURIES > 0)
+fatal_injury <- evtype_reclassify(fatal_injury)
+property_crop <- evtype_reclassify(property_crop)
 ```
 
-Of the total reported cases of fatalities and injuries, `r round(nrow(fatal_subset),0)` had fatalities, `r nrow(injury_subset)` had injuries, with `r nrow(fatal_injury)` total cases.
-
-###Severe Weather Impacts on Fatality and Injury
-
-Reclassify some of the EVTYPEs and aggregate together, add an additional column which is the average per event.
+Modify the dates to get the year of incident, which we will use later in the study to look at yearly trends.
 
 ```{R}
-fatal_reclassify <- evtype_reclassify(fatal_subset)
-fatal_summary <- evtype_aggregate(fatal_reclassify, "FATALITIES")
-
-injury_reclassify <- evtype_reclassify(injury_subset)
-injury_summary <- evtype_aggregate(injury_reclassify, "INJURIES")
+fatal_injury$BGN_DATE <- as.numeric(format(as.Date(fatal_injury$BGN_DATE, format="%m/%d/%Y %H:%M:%S"),"%Y"))
+property_crop$BGN_DATE <- as.numeric(format(as.Date(property_crop$BGN_DATE, format="%m/%d/%Y %H:%M:%S"),"%Y"))
 ```
-Here we have the resulting tables:
-```{R}
-head(fatal_summary, 5)
-head(injury_summary, 5)
-```
-Clearly the major contributors are **TORNADO**, **HEAT**, **FLOOD**, **WIND**, and **PRECIP**
-```{R}
-# Clean up some memory
-# rm(fatal_reclassify, fatal_subset, injury_reclassify, injury_subset)
-```
-###Sever Weather Impacts On Property and Crop Damage
 
-We do a similar analysis for property damage.
+Modify damage values for property and crops giving them a comparible scale.
 
-First we need to scale the reported amounts
-
-We need to modify the values 
-
-We give the proper scaling for amounts of damage.
+We need to compute the proper scaling for the amounts of damage reported. Numeric values are stored in **PROPDMG** and **CROPDMG**, with scaling information in **PROPDMGEXP** and **CROPDMGEXP** respectively. Codes for scaling are:
 
 - H - hundreds
 - K - thousands
 - M - millions
 - B - billions
 
+We will base our value conversions in x1000 (thousands), so that by default a numeric value given becomes its value in thousands, ie 4.5 will be interpreted as 4,500. This handily resolves some of the data entry and typographic errors relating to the scaling codes. We feel by doing this, **it would be a conservative estimate of damage value and the values would not have to be excluded**, they are also not scaled to be so large as to skew the observations.
+
+We also need to convert the scales to upper case for uniformity.
 ```{R}
-# Convert any lower case scaling to upper case
 property_crop$PROPDMGEXP <- toupper(property_crop$PROPDMGEXP)
-#
-# Values are based in x1000 (thousands)
-#
-# Any observations without a correct scale designator will not be altered
-#
+
 property_crop$PROPDMG <- ifelse(property_crop$PROPDMGEXP=="H", property_crop$PROPDMG/10, property_crop$PROPDMG)
 property_crop$PROPDMG <- ifelse(property_crop$PROPDMGEXP=="K", property_crop$PROPDMG*1, property_crop$PROPDMG)
 property_crop$PROPDMG <- ifelse(property_crop$PROPDMGEXP=="M", property_crop$PROPDMG*1000, property_crop$PROPDMG)
 property_crop$PROPDMG <- ifelse(property_crop$PROPDMGEXP=="B", property_crop$PROPDMG*1000000, property_crop$PROPDMG)
 ```
 
-Subdivide for property and crop
+##**Severe Weather Impact On Population Fatalities and Injuries**
 
+For impact on population, we further subdivide the **fatal_injury** data set into **fatal_*** and **injury_** subsets to specifically look at injury and fatality rates during severe weather. These have a **_subset** suffix.
+
+```{R}
+fatal_subset <- subset(fatal_injury, fatal_injury$FATALITIES > 0)
+dim(fatal_subset)
+injury_subset <- subset(fatal_injury, fatal_injury$INJURIES > 0)
+dim(injury_subset)
+```
+
+Of the total reported cases of fatalities and injuries, `r round(nrow(fatal_subset),0)` had fatalities, `r nrow(injury_subset)` had injuries, with `r nrow(fatal_injury)` total cases (there may be overlap when both fatalities and nonfatal injuries are observed).
+
+
+Reclassify some of the EVTYPEs and aggregate together, add an additional column which is the average per event.
+
+```{R}
+fatal_summary <- evtype_aggregate(fatal_subset, "FATALITIES")
+injury_summary <- evtype_aggregate(injury_subset, "INJURIES")
+```
+
+Here we have the resulting tables:
+```{R}
+head(fatal_summary, 5)
+head(injury_summary, 5)
+```
+
+The top five major contributors to fatalities and injuries are **TORNADO**, **HEAT**, **FLOOD**, **WIND**, and **PRECIP**.
+
+
+##**Severe Weather Impact On Property and Crop Damage**
+
+We do a similar analysis for property and crop damage that we did for fatalities and injuries.  
+Aggregating using modified categories in **evtype_reclassify()**.  
+
+Subdivide for property and crop damage.
 ```{R}
 property_subset <- subset(property_crop, property_crop$PROPDMG > 0)
+dim(property_subset)
 crop_subset <- subset(property_crop, property_crop$CROPDMG > 0)
+dim(crop_subset)
 ```
 
+Aggregate the EVTYPEs
 ```{R}
-property_reclassify <- evtype_reclassify(property_subset)
-property_summary <- evtype_aggregate(property_reclassify, "PROPERTY")
-
-crop_reclassify <- evtype_reclassify(crop_subset)
-crop_summary <- evtype_aggregate(crop_reclassify, "CROPS")
+property_summary <- evtype_aggregate(property_subset, "PROPERTY")
+crop_summary <- evtype_aggregate(crop_subset, "CROPS")
 ```
 
-```{R}
-# Clean up some memory
-# rm(property_subset, property_reclassify, crop_subset, crop_reclassify)
-```
-
+Here we have the resulting tables:
 ```{R}
 head(property_summary, 5)
 head(crop_summary, 5)
 ```
 
-##Results
-Clearly the biggest event 
-An interesting observation is that heat dominates such much more than cold
+**FLOODING**, **PRECIP**, **TORNADO**, **WIND** and also **HURRICANE** and **FIRE** all had severe impacts to proerty and crop damage. 
 
-Damage to crops were mainly due to "blanketing" effects of precipitation and flooding. Tornado's effects on crops was limited to less than 8% of the totl
 
-Some assumptions in the data:
+#**Results**
 
-- Not for property and crop damage data, if the scale is off 
+Tornados were the highest overall scoring weather incident across population and property damages (see leftmost black bar in graph). Different factors effected. An interesting observation is that heat dominates fatalities much more than cold.
+
+Hurricanes inflicted more damage to properties (red bar) than to crops and we would expect this since hurricanes occur closer to seashore areas rather than around inland farm areas. Damage to crops were mainly due to "blanketing" effects of precipitation and flooding. Tornado's effects on crops was limited to less than 8% of the total.
+
+
+**Graph Of Results**
+
+```{R}
+# Merge the top 5 for the graph
+fatal_5 <- head(fatal_summary, 5)
+injury_5 <- head(injury_summary, 5)
+property_5 <- head(property_summary, 5)
+crop_5 <- head(crop_summary, 5)
+a <- data.frame(EVTYPE=fatal_5$EVTYPE, fatal_pct=fatal_5$pct)
+a <- merge(a, data.frame(EVTYPE=injury_5$EVTYPE, injury_pct=injury_5$pct), all=TRUE, incomparables=0)
+a <- merge(a, data.frame(EVTYPE=property_5$EVTYPE, property_pct=property_5$pct), all=TRUE, incomparables=0)
+a <- merge(a, data.frame(EVTYPE=crop_5$EVTYPE, crop_pct=crop_5$pct), all=TRUE, incomparables=0)
+
+a[is.na(a)] <- 0
+a <- a[with(a, order(-a$fatal_pct)),]  # sort by fatality results
+
+mydata <- data.frame(Fatalities=a$fatal_pct, Injuries=a$injury_pct, Property=a$property_pct, Crops=a$fatal_pct)
+barplot(as.matrix(mydata), beside=TRUE, col=c(1:nrow(a)), main="Top 5 Percent of Total Damage", ylab="Percent")
+legend("topright", legend=a$EVTYPE, cex=0.6, fill=c(1:nrow(a)))
+```
+
+The graph shows the top five **EVTYPE** contributors to damage in each of the four catagories: Fatalities, Injuries, Property, and Crops. Clearly, **TORNADO** is the stand out contributing factor across all four categories, followed by **HEAT**. Although **HURRICANE** are deadly, they did not show up in the top 5 factors for Fatalities or Injuries. **HEAT** does not contribute to property damage, as one would expect, and crops are not effected by **HURRICANE** since farms are located in-land.
+
+
+Some assumptions used when processing the data:
+
+- reclassified categories are independent and identifiable, whereas in real life the lines of definition may blur
+- errors in scaling for damage costs are assumed to be x1000
+- rankings are based on total costs or total counts, this was tempered with the addition of the average column in the **_summary** data.frames to identify either overly large incidents or summation of many small incidents
+- Inflation and increases in property or commodity prices over time are not taken into account
+
+
 
 [1] https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf
 
-\newpage
-#Appendix
-##How has the data changed over time
+**Is The Data Trending Over Time?**
 
-We break the observations into two time periods by splitting down the middle to see if there has been an effect in the two time periods.
+We look at the four categories" Fatalities, Injuries, Property, and Crops, aggregated on a yearly basis on all reported **EVTYPE** observations to see if there are any trends in occurance of incidents.
 
-z<- as.Date("2/20/1951 0:00:00", format="%m/%d/%Y %H:%M:%S")
+**Graph of Fatalities and Injuries**
 ```{R}
-property_subset$BGN_DATE <- as.Date(property_subset$BGN_DATE, format="%m/%d/%Y %H:%M:%S")
-property_subset$BGN_DATE <- as.numeric(format(property_subset$BGN_DATE,"%Y"))
-
-crop_subset$BGN_DATE <- as.Date(crop_subset$BGN_DATE, format="%m/%d/%Y %H:%M:%S")
-crop_subset$BGN_DATE <- as.numeric(format(crop_subset$BGN_DATE,"%Y"))
-
-fatal_subset$BGN_DATE <- as.Date(fatal_subset$BGN_DATE, format="%m/%d/%Y %H:%M:%S")
-fatal_subset$BGN_DATE <- as.numeric(format(fatal_subset$BGN_DATE,"%Y"))
-
-injury_subset$BGN_DATE <- as.Date(injury_subset$BGN_DATE, format="%m/%d/%Y %H:%M:%S")
-injury_subset$BGN_DATE <- as.numeric(format(injury_subset$BGN_DATE,"%Y"))
-
-by_year <- function(x){
-    result <- data.frame()
-    y <- unique(x$BGN_DATE)
-    for (i in y){
-        y_subset <- subset(x, x$BGN_DATE == i)
-        result <- rbind(result, data.frame(year=i, count=nrow(y_subset)))
-    }
-    result
-}
-```
-
-
-```{R}
+fatal_subset <- subset(fatal_injury, fatal_injury$FATALITIES > 0)
 fatal_year <- by_year(fatal_subset)
+
+injury_subset <- subset(fatal_injury, fatal_injury$INJURIES > 0)
 injury_year <- by_year(injury_subset)
 
 injury_year <- cbind(injury_year, type="Injuries")
 fatal_year <- cbind(fatal_year, type="Fatalities")
 a_result<-rbind(fatal_year, injury_year)
 
-plot(a_result$year, a_result$count, col=a_result$type, xlab="Year",ylab="Count",main="Incidents Per Year")
+plot(a_result$year, a_result$count, col=a_result$type, xlab="Year",ylab="Count",main="Fatality and Injury Incidents Per Year")
 legend("topleft", legend=c("fatal","injury"), col=c(1,2), pch=1)
 ```
+
+The graph shows a consistently higher level of injuries(red) over fatalities(black) and this would be consistent with a correlated pattern of first injuries and then injuries and death with increasing storm severity. We ascribe the sudden increase in observations in the mid 1990's to increasing and better reporting of incidents. Evidence for this can be found in the tapering off of total levels in subsequent years at a higher level. This is different from levels of property incidents discussed next.
+
+**Graph of Property and Crops**
 ```{R}
+property_subset <- subset(property_crop, property_crop$PROPDMG > 0)
 property_year <- by_year(property_subset)
+                         
+crop_subset <- subset(property_crop, property_crop$CROPDMG > 0)
 crop_year <- by_year(crop_subset)
 
 property_year <- cbind(property_year, type="Property")
 crop_year <- cbind(crop_year, type="Crops")
 a_result<-rbind(property_year, crop_year)
 
-plot(a_result$year, a_result$count, col=a_result$type, xlab="Year",ylab="Count",main="Incidents Per Year")
+plot(a_result$year, a_result$count, col=a_result$type, xlab="Year",ylab="Count",main="Property and Crop Damage Incidents Per Year")
 legend("topleft", legend=c("property","crops"), col=c(1,2), pch=1)
 ```
+
+The crops data does not start until after 1990. There is a surge in reported property incidents from the mid 1990's which then continues to increase. It is interesting that the number of property incidents has been on an increasing trend and it would be useful to know the cause(s) of this, for example whether housing is being developed in more dangerous areas, in order to form appropriate policies to possibly address this observed increase.
